@@ -4,7 +4,11 @@ import readline from "node:readline";
 import { writeFile } from "node:fs/promises";
 import IPCIDR from "ip-cidr";
 import { RadixTree } from "../utils/RadixTree.js";
-import { ipToBinary, cidrToBinaryPrefix, rangeToCIDRs } from "../utils/iputils.js";
+import {
+	ipToBinary,
+	cidrToBinaryPrefix,
+	rangeToCIDRs,
+} from "../utils/iputils.js";
 
 const urls = [
 	"https://raw.githubusercontent.com/X4BNet/lists_vpn/main/output/datacenter/ipv4.txt",
@@ -22,9 +26,11 @@ const RETRY_DELAY = 2000;
  * @returns {boolean} True if TTY is available
  */
 const isTTY = () => {
-	return process.stdout.isTTY && 
-		   typeof process.stdout.clearLine === 'function' && 
-		   typeof process.stdout.cursorTo === 'function';
+	return (
+		process.stdout.isTTY &&
+		typeof process.stdout.clearLine === "function" &&
+		typeof process.stdout.cursorTo === "function"
+	);
 };
 
 /**
@@ -58,7 +64,28 @@ const clearLine = () => {
 class CIDRProcessor {
 	constructor() {
 		this.asnSet = new Set();
+		this.asnameSet = new Set();
 		this.cidrMap = new Map();
+	}
+	/**
+	 * Normalizes the ASName to a simplified format (uppercase, no special characters, no suffixes like LLC, GmbH, Inc, Ltd, S.A., etc.)
+	 * @param {string} name
+	 * @returns {string}
+	 */
+	normalizeASName(name) {
+		if (!name) return "";
+		if (name.includes("PACKETHUB")) return "PACKETHUB";
+		if (name.includes("VULTR")) return "VULTR";
+		// Removes special characters, converts to uppercase, removes suffixes
+		return name
+			.replace(/[,\-]/g, " ")
+			.replace(
+				/(\,\s*|\s+)?(LLC|GMBH|INC|LTD|S\.A\.|S\.A|SP\.?\s*Z\s*O\.?\s*O\.?|SPOLKA|SPÓŁKA|CORP|COMPANY|LIMITED|PLC|AG|BV|SRL|SAS|SA|AB|AS|NV|OY|KG|KFT|OOO|Z\s*O\s*O|CO|ONLINE)\b/gi,
+				""
+			)
+			.replace(/\s+/g, " ")
+			.trim()
+			.toUpperCase();
 	}
 
 	/**
@@ -132,9 +159,29 @@ class CIDRProcessor {
 				entries++;
 
 				if (url.includes("iptoasn.com")) {
-					const [startIpU32, endIpU32, asn, country, asname] = trimmedLine.split("\t");
-					
-					if (this.asnSet.has(asn)) {
+					const [startIpU32, endIpU32, asn, country, asname] =
+						trimmedLine.split("\t");
+					const normAsname = this.normalizeASName(asname);
+					// Check by ASN or by normalized ASName (contains, ignoreCase)
+					let asnameMatch = false;
+					if (normAsname && this.asnameSet.size > 0) {
+						for (const ref of this.asnameSet) {
+							// console.log({normAsname, ref});
+							if (
+								normAsname.includes(ref) ||
+								ref.includes(normAsname)
+							) {
+								asnameMatch = true;
+								break;
+							}
+						}
+					}
+					// if (asnameMatch && !this.asnSet.has(asn)) {
+					//  console.log(
+					//      `[WARN] ASName "${normAsname} ${asname}" matched but ASN "${asn}" not found in ASN set.`
+					//  );
+					// }
+					if (this.asnSet.has(asn) || asnameMatch) {
 						const startIP = this.u32ToIP(+startIpU32);
 						const endIP = this.u32ToIP(+endIpU32);
 						for (const cidr of rangeToCIDRs(startIP, endIP)) {
@@ -143,8 +190,15 @@ class CIDRProcessor {
 					}
 				} else if (url.includes("NullifiedCode")) {
 					if (trimmedLine.startsWith("AS")) {
-						const [as] = trimmedLine.split(" ");
+						const [as, ...asnameParts] = trimmedLine.split(" ");
 						this.asnSet.add(as.substring(2));
+						// Add normalized ASName to asnameSet
+						const asnameRaw = asnameParts.join(" ").trim();
+						if (asnameRaw) {
+							const norm = this.normalizeASName(asnameRaw);
+							// console.log({ norm, asnameRaw });
+							if (norm) this.asnameSet.add(norm);
+						}
 					}
 				} else {
 					this.cidrMap.set(trimmedLine, true);
@@ -217,11 +271,11 @@ class CIDRProcessor {
 				lastLogTime = now;
 			}
 		}
-		
+
 		if (isTTY()) {
 			process.stdout.write("\n");
 		}
-		
+
 		const elapsed = ((Date.now() - startTime) / 1000).toFixed(1);
 		console.log(
 			`[INFO] CIDR filtering (RadixTree) finished (${result.length} CIDRs, ${elapsed}s)`
@@ -239,7 +293,7 @@ class CIDRProcessor {
 		if (asnUrl) {
 			await this.processUrl(asnUrl);
 			console.log(
-				`[INFO] Collected ${this.asnSet.size} ASNs to filter by.`
+				`[INFO] Collected ${this.asnSet.size} ASNs and ${this.asnameSet.size} ASNames to filter by.`
 			);
 		}
 
@@ -248,6 +302,7 @@ class CIDRProcessor {
 
 		const filteredCIDRs = this.filterContainedCIDRsRadix();
 		await writeFile(FILE_NAME, [...filteredCIDRs].join("\n"), "utf-8");
+		console.log(this.asnameSet);
 		console.log(
 			`[INFO] Saved ${filteredCIDRs.size} filtered IPs/CIDRs to ${FILE_NAME}`
 		);
