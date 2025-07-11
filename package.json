@@ -1,0 +1,16 @@
+{
+	"name": "anti-vpn-list",
+	"version": "1.0.0",
+	"description": "Automatically generates CIDR and IP lists including data centers, VPNs, hosting and malicious IPs, updated every 4 hours by GitHub Actions.",
+	"license": "ISC",
+	"author": "THEzombiePL",
+	"type": "module",
+	"main": "scripts/generateCidrs.js",
+	"scripts": {
+		"start": "node scripts/download.js",
+		"test": "echo \"Error: no test specified\" && exit 1"
+	},
+	"dependencies": {
+		"ip-cidr": "^4.0.2"
+	}
+}

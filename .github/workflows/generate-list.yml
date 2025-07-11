@@ -1,0 +1,138 @@
+name: Generate Anti-VPN List
+
+on:
+  schedule:
+    - cron: '0 */6 * * *'   # every 6 hours
+    - cron: '0 6 * * *'     # daily at 6 AM
+  workflow_dispatch:
+  push:
+    branches: [ main ]
+
+permissions:
+  contents: write
+  actions: read
+  pull-requests: write
+
+jobs:
+  generate-cidrs:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.PAT_TOKEN || github.token }}
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '18'
+
+      - name: Install dependencies
+        run: npm install ip-cidr
+
+      - name: Generate CIDR lists
+        run: npm run start
+        
+      - name: List files after generation
+        run: ls -l malicious-ips.txt
+        
+      - name: Check for duplicates
+        run: |
+          TOTAL_LINES=$(wc -l < malicious-ips.txt)
+          UNIQUE_LINES=$(sort malicious-ips.txt | uniq | wc -l)
+          DUPLICATES=$((TOTAL_LINES - UNIQUE_LINES))
+
+          if [ "$DUPLICATES" -gt 0 ]; then
+            echo "⚠️ Found $DUPLICATES duplicate entries, removing..."
+            sort malicious-ips.txt | uniq > malicious-ips-temp.txt
+            mv malicious-ips-temp.txt malicious-ips.txt
+            echo "✅ Duplicates removed. New total: $(wc -l < malicious-ips.txt)"
+          else
+            echo "✅ No duplicates found"
+          fi
+
+      - name: Check if files changed
+        id: verify-changed-files
+        run: |
+          # Force add the file (ignore .gitignore if present)
+          git add -f malicious-ips.txt
+          
+          # Debug: show git status
+          echo "=== Git status ==="
+          git status --porcelain
+          echo "=== Git diff --cached ==="
+          git diff --cached --name-only
+          
+          # Check if there are staged changes
+          if [ -n "$(git diff --cached --name-only)" ]; then
+            echo "changed=true" >> $GITHUB_OUTPUT
+            echo "✅ Changes detected - staged files found"
+          else
+            echo "changed=false" >> $GITHUB_OUTPUT
+            echo "ℹ️ No changes detected - no staged files"
+          fi
+
+      - name: Commit and push changes
+        if: steps.verify-changed-files.outputs.changed == 'true'
+        run: |
+          git config --local user.email "action@github.com"
+          git config --local user.name "GitHub Action"
+          git commit -m "Update CIDR lists - $(date -u '+%Y-%m-%d %H:%M:%S UTC')" || exit 0
+          git push
+
+      - name: Create release
+        if: steps.verify-changed-files.outputs.changed == 'true'
+        env:
+          GITHUB_TOKEN: ${{ secrets.PAT_TOKEN || secrets.GITHUB_TOKEN }}
+        run: |
+          TAG_NAME="v$(date -u '+%Y%m%d-%H%M%S')"
+          TOTAL_CIDRS=$(wc -l < malicious-ips.txt)
+          FILE_SIZE=$(du -h malicious-ips.txt | cut -f1)
+          FILE_SHA256=$(sha256sum malicious-ips.txt | cut -d' ' -f1)
+
+          gh release create "$TAG_NAME" \
+            --title "CIDR Lists Update - $(date -u '+%Y-%m-%d %H:%M UTC')" \
+            --notes "**Automated CIDR List Update**
+            📊 **Statistics:**
+            - Total entries: **$TOTAL_CIDRS**
+            - File size: **$FILE_SIZE**
+            - Generated: $(date -u '+%Y-%m-%d %H:%M:%S UTC')
+            - SHA256: \`$FILE_SHA256\`
+
+            **Sources:**
+            - X4B Datacenter IPs
+            - Nullified ASN List  
+            - IP2ASN Database
+
+            **Usage:**
+            \`\`\`bash
+            # Download latest list
+            wget https://github.com/${{ github.repository }}/releases/download/$TAG_NAME/malicious-ips.txt
+
+            # Verify integrity
+            echo \"$FILE_SHA256 malicious-ips.txt\" | sha256sum -c
+            \`\`\`
+
+            **Integration Examples:**
+            \`\`\`bash
+            # iptables
+            while read cidr; do iptables -A INPUT -s \$cidr -j DROP; done < malicious-ips.txt
+
+            # nginx
+            sed 's/^/deny /' malicious-ips.txt > blocked-cidrs.conf
+            \`\`\`" \
+            malicious-ips.txt
+
+      - name: Cleanup and final status
+        if: always()
+        run: |
+          echo "=== WORKFLOW COMPLETED ==="
+          echo "Status: ${{ job.status }}"
+          echo "Timestamp: $(date -u '+%Y-%m-%d %H:%M:%S UTC')"
+          if [ -f "malicious-ips.txt" ]; then
+            echo "Final file stats:"
+            echo "- Size: $(du -h malicious-ips.txt | cut -f1)"
+            echo "- Lines: $(wc -l < malicious-ips.txt)"
+            echo "- SHA256: $(sha256sum malicious-ips.txt | cut -d' ' -f1)"
+          fi
