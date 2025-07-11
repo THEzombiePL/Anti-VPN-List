@@ -4,7 +4,7 @@ import readline from "node:readline";
 import { writeFile } from "node:fs/promises";
 import IPCIDR from "ip-cidr";
 import { RadixTree } from "../utils/RadixTree.js";
-import { ipToBinary, cidrToBinaryPrefix } from "../utils/iputils.js";
+import { ipToBinary, cidrToBinaryPrefix, rangeToCIDRs } from "../utils/iputils.js";
 
 const urls = [
 	"https://raw.githubusercontent.com/X4BNet/lists_vpn/main/output/datacenter/ipv4.txt",
@@ -132,17 +132,19 @@ class CIDRProcessor {
 				entries++;
 
 				if (url.includes("iptoasn.com")) {
-					const [startIpU32, endIpU32, asn] = trimmedLine.split("\t");
+					const [startIpU32, endIpU32, asn, country, asname] = trimmedLine.split("\t");
+					
 					if (this.asnSet.has(asn)) {
 						const startIP = this.u32ToIP(+startIpU32);
 						const endIP = this.u32ToIP(+endIpU32);
-						for (const cidr of this.rangeToCIDRs(startIP, endIP)) {
+						for (const cidr of rangeToCIDRs(startIP, endIP)) {
 							this.cidrMap.set(cidr, true);
 						}
 					}
 				} else if (url.includes("NullifiedCode")) {
 					if (trimmedLine.startsWith("AS")) {
-						this.asnSet.add(trimmedLine.substring(2));
+						const [as] = trimmedLine.split(" ");
+						this.asnSet.add(as.substring(2));
 					}
 				} else {
 					this.cidrMap.set(trimmedLine, true);
