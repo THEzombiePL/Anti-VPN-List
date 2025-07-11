@@ -65,13 +65,14 @@ Automatically generates CIDR and IP blocklists containing data centers, VPNs, ho
 ### Latest Version
 
 ```bash
-wget https://raw.githubusercontent.com/THEzombiePL/Anti-VPN-List/main/scripts/malicious-cidrs.txt
+wget https://raw.githubusercontent.com/THEzombiePL/Anti-VPN-List/main/malicious-ips.txt
 ```
 
 ### From Releases
 
 ```bash
-wget https://github.com/THEzombiePL/Anti-VPN-List/releases/latest/download/malicious-cidrs.txt
+wget https://github.com/THEzombiePL/Anti-VPN-List/releases/latest/download/malicious-ips.txt
+
 ```
 
 ## 🔧 Local Usage
@@ -85,7 +86,7 @@ npm run start
 
 The GitHub Actions workflow maintains:
 
-* **malicious-cidrs.txt** — main CIDR list
+* **malicious-ips.txt** — main IPs and CIDR list
 * **Release notes** — metadata for each update
 
 ## 📝 License
