@@ -2,7 +2,7 @@ name: Generate Anti-VPN List
 
 on:
   schedule:
-    - cron: '0 */6 * * *'   # every 6 hours
+    - cron: '0 */4 * * *'   # every 6 hours
     - cron: '0 6 * * *'     # daily at 6 AM
   workflow_dispatch:
   push:
