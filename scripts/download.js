@@ -300,11 +300,24 @@ class CIDRProcessor {
 		const otherUrls = urls.filter((url) => !url.includes("NullifiedCode"));
 		await Promise.all(otherUrls.map((url) => this.processUrl(url)));
 
-		const filteredCIDRs = this.filterContainedCIDRsRadix();
-		await writeFile(FILE_NAME, [...filteredCIDRs].join("\n"), "utf-8");
-		console.log(
-			`[INFO] Saved ${filteredCIDRs.size} filtered IPs/CIDRs to ${FILE_NAME}`
-		);
+const filteredCIDRs = this.filterContainedCIDRsRadix();
+// Sortowanie numeryczne IP/CIDR
+const sortIp = (a, b) => {
+	const toParts = (ip) => ip.split('/')[0].split('.').map(Number);
+	const pa = toParts(a);
+	const pb = toParts(b);
+	for (let i = 0; i < 4; i++) {
+		if ((pa[i] || 0) !== (pb[i] || 0)) return (pa[i] || 0) - (pb[i] || 0);
+	}
+	// Jeśli oba są IP, są równe; jeśli CIDR, sortuj po prefiksie
+	const getMask = (ip) => ip.includes('/') ? parseInt(ip.split('/')[1]) : 32;
+	return getMask(a) - getMask(b);
+};
+const sortedCIDRs = [...filteredCIDRs].sort(sortIp);
+await writeFile(FILE_NAME, sortedCIDRs.join("\n"), "utf-8");
+console.log(
+	`[INFO] Saved ${sortedCIDRs.length} filtered IPs/CIDRs to ${FILE_NAME}`
+);
 	}
 }
 
