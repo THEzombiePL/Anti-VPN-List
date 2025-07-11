@@ -302,7 +302,6 @@ class CIDRProcessor {
 
 		const filteredCIDRs = this.filterContainedCIDRsRadix();
 		await writeFile(FILE_NAME, [...filteredCIDRs].join("\n"), "utf-8");
-		console.log(this.asnameSet);
 		console.log(
 			`[INFO] Saved ${filteredCIDRs.size} filtered IPs/CIDRs to ${FILE_NAME}`
 		);
