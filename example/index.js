@@ -1,4 +1,4 @@
-import { IpChecker } from "../utils/IpChecker.js"; // dostosuj ścieżkę
+import { IpChecker } from "../utils/IpChecker.js";
 const ipList = [
 	"1.1.1.1",
 	"8.8.8.8",
