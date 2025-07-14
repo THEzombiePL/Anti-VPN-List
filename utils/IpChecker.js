@@ -23,8 +23,25 @@ export class IpChecker {
 			.filter(Boolean)
 			.map((line) => (line.includes("/") ? line : `${line}/32`));
 
-		this.#ranges = cidrs.map(cidrToRange);
-		this.#ranges.sort((a, b) => a[0] - b[0]);
+		let ranges = cidrs.map(cidrToRange);
+		ranges.sort((a, b) => a[0] - b[0]);
+
+		// Łączenie nakładających się lub sąsiadujących zakresów
+		this.#ranges = [];
+		let currentRange = ranges[0];
+
+		for (let i = 1; i < ranges.length; i++) {
+			const range = ranges[i];
+			// Jeśli końcowy IP + 1 pierwszego zakresu jest większy lub równy początkowemu IP drugiego zakresu
+			// lub jeśli zakresy się nakładają, łączymy je
+			if (currentRange[1] + 1 >= range[0]) {
+				currentRange[1] = Math.max(currentRange[1], range[1]);
+			} else {
+				this.#ranges.push(currentRange);
+				currentRange = range;
+			}
+		}
+		this.#ranges.push(currentRange);
 
 		this.#totalIPs = this.#ranges.reduce(
 			(acc, [start, end]) => acc + (end - start + 1),
@@ -34,8 +51,13 @@ export class IpChecker {
 		const elapsed = (Date.now() - startTime) / 1000;
 		console.log(`Total IPs: ${this.#totalIPs.toLocaleString()}`);
 		console.log(`CIDR ranges loaded: ${this.#ranges.length}`);
+		console.log(`Zoptymalizowane zakresy IP`);
 		console.log(`Initialization time: ${elapsed.toFixed(2)}s`);
-		console.log(`Memory: ${(process.memoryUsage().heapUsed / 1024 / 1024).toFixed(2)} MB`);
+		console.log(
+			`Memory: ${(process.memoryUsage().heapUsed / 1024 / 1024).toFixed(
+				2
+			)} MB`
+		);
 	}
 
 	/**

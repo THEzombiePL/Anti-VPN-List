@@ -8,13 +8,14 @@ const ipList = [
 	"175.201.245.187",
 	"223.255.199.161",
 	"193.42.98.74",
+	"193.42.99.215"
 ];
 
 const checker = new IpChecker();
 
 try {
 	await checker.load("malicious-ips.txt");
-
+	
 	for (const ip of ipList) {
 		const result = checker.isBlocked(ip)
 			? "blocked ❌"
