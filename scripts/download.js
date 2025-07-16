@@ -65,7 +65,9 @@ class CIDRProcessor {
 	constructor() {
 		this.asnSet = new Set();
 		this.asnameSet = new Set();
-		this.cidrMap = new Map();
+		this.cidrMap = new Map([
+			["194.233.101.0/24", true],
+		]);
 	}
 	/**
 	 * Normalizes the ASName to a simplified format (uppercase, no special characters, no suffixes like LLC, GmbH, Inc, Ltd, S.A., etc.)
